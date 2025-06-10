@@ -5,13 +5,18 @@ REPORT_DIR="$HOME/Desktop/MacDiagnostic"
 HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S).html"
 mkdir -p "$REPORT_DIR"
 
-# Función para obtener último uso de apps
-get_last_used() {
-    sqlite3 ~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2* \
-    "SELECT datetime(LSQuarantineTimeStamp + 978307200, 'unixepoch') as date, LSQuarantineAgentName, LSQuarantineOriginURLString \
-    FROM LSQuarantineEvent \
-    ORDER BY LSQuarantineTimeStamp DESC \
-    LIMIT 10" 2>/dev/null | awk -F'|' '{print $1, $2}'
+# Función para formatear tamaños
+format_size() {
+    echo $1 | awk '
+        function human(x) {
+            s="KB MB GB TB";
+            while( x>=1024 && length(s)>1 ) {
+                x/=1024;
+                s=substr(s,4);
+            }
+            return sprintf("%.1f %s", x, s);
+        }
+        {print human($1)}'
 }
 
 # Generar reporte HTML
@@ -22,40 +27,104 @@ cat > "$HTML_REPORT" << EOH
     <title>Diagnóstico Mac - $(hostname)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; } 
+        h1 { color: #333; }
         .card { background: #f9f9f9; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+        .critical { color: #e74c3c; }
+        .warning { color: #f39c12; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
     </style>
 </head>
 <body>
-    <h1>🔍 Diagnóstico Técnico - $(hostname)</h1>
+    <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
     <p>Generado: $(date)</p>
-
-    <!-- Sección Programas Instalados -->
+    
+    <!-- Sección Sistema -->
     <div class="card">
-        <h2>📦 Programas Instalados (Homebrew)</h2>
-        <pre>$(brew list --versions || echo "Homebrew no instalado")</pre>
-        
-        <h2>🖥 Aplicaciones /Applications</h2>
-        <pre>$(ls -lh /Applications | awk 'NR<=20 {print $9, $5}')</pre>
-    </div>
-
-    <!-- Sección Último Uso -->
-    <div class="card">
-        <h2>⏳ Últimas Apps Usadas</h2>
+        <h2>🖥️ Sistema</h2>
         <table>
-            $(get_last_used | while read -r date app; do
-                echo "<tr><td>$app</td><td>$date</td></tr>"
-            done)
+            <tr><th>Modelo:</th><td>$(sysctl -n hw.model)</td></tr>
+            <tr><th>macOS:</th><td>$(sw_vers -productVersion) (Build $(sw_vers -buildVersion))</td></tr>
+            <tr><th>Arquitectura:</th><td>$(uname -m)</td></tr>
+            <tr><th>CPU:</th><td>$(sysctl -n machdep.cpu.brand_string)</td></tr>
+            <tr><th>Núcleos:</th><td>$(sysctl -n hw.ncpu)</td></tr>
+            <tr><th>Uptime:</th><td>$(uptime | awk -F'( |,|:)+' '{print $6"h "$7"m"}')</td></tr>
         </table>
     </div>
 
-    <!-- [Otras secciones del diagnóstico previo] -->
+    <!-- Sección Memoria -->
+    <div class="card">
+        <h2>🧠 Memoria</h2>
+        <table>
+            <tr><th>Total RAM:</th><td>$(sysctl -n hw.memsize | awk '{print $0/1073741824" GB"}')</td></tr>
+            <tr><th>Uso Actual:</th><td>$(top -l 1 | grep -E "^PhysMem" | awk '{print "Used: "$2", Free: "$6}')</td></tr>
+            <tr><th>Swap:</th><td>$(sysctl vm.swapusage | awk '{print $3" used, "$7" free"}')</td></tr>
+        </table>
+        <h3>Top Procesos (RAM):</h3>
+        <pre>$(ps -ercmo %mem,pid,command | head -6)</pre>
+    </div>
+
+    <!-- Sección Almacenamiento -->
+    <div class="card">
+        <h2>💾 Almacenamiento</h2>
+        <table>
+            <tr><th>Disco Principal:</th><td>$(df -h / | tail -1 | awk '{print $4 " libres de " $2 " ("$5" usado)"}')</td></tr>
+        </table>
+        <h3>Archivos Más Grandes (Top 10):</h3>
+        <pre>$(find ~ -type f -exec du -h {} + 2>/dev/null | sort -rh | head -10)</pre>
+    </div>
+
+    <!-- Sección Batería (solo portátiles) -->
+EOH
+
+# Salud de Batería
+if system_profiler SPPowerDataType | grep -q "Battery Information"; then
+    BATTERY_INFO=$(system_profiler SPPowerDataType | awk -F': ' '
+        /Cycle Count/ {cycles=$2}
+        /Condition/ {condition=$2}
+        /Maximum Capacity/ {capacity=$2}
+        END {print cycles, capacity, condition}')
+    
+    echo "<div class='card'><h2>🔋 Batería</h2><table>" >> "$HTML_REPORT"
+    echo "<tr><th>Ciclos:</th><td>$(echo $BATTERY_INFO | awk '{print $1}')</td></tr>" >> "$HTML_REPORT"
+    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>" >> "$HTML_REPORT"
+    
+    BATTERY_CONDITION=$(echo $BATTERY_INFO | awk '{print $3}')
+    if [[ "$BATTERY_CONDITION" == "Normal" ]]; then
+        echo "<tr><th>Estado:</th><td>$BATTERY_CONDITION ✅</td></tr>" >> "$HTML_REPORT"
+    else
+        echo "<tr><th>Estado:</th><td class='warning'>$BATTERY_CONDITION ⚠️</td></tr>" >> "$HTML_REPORT"
+    fi
+    
+    echo "</table></div>" >> "$HTML_REPORT"
+fi
+
+# Sección Red
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🌐 Red</h2>
+        <table>
+            <tr><th>IP Pública:</th><td>$(curl -s ifconfig.me)</td></tr>
+            <tr><th>DNS:</th><td>$(scutil --dns | grep nameserver | awk '{print $3}' | uniq | tr '\n' ' ')</td></tr>
+        </table>
+        <h3>Recomendación:</h3>
+        <p>Ejecuta manualmente: <code>networkQuality</code> para test de velocidad avanzado</p>
+    </div>
+
+    <!-- Sección Recomendaciones -->
+    <div class="card">
+        <h2>🔧 Recomendaciones Técnicas</h2>
+        <ul>
+            <li>Verificar espacio en disco: <code>sudo ncdu /</code></li>
+            <li>Monitor en tiempo real: <code>htop</code> (instalar via Homebrew)</li>
+            <li>Ver logs del sistema: <code>log show --last 1h</code></li>
+        </ul>
+    </div>
 </body>
 </html>
 EOH
 
+# Finalización
 open "$HTML_REPORT"
 echo "✅ Reporte generado: $HTML_REPORT"
