@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.2"
+VERSION="1.3"
 
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
@@ -33,6 +33,30 @@ format_size() {
             return sprintf("%.1f %s", x, s);
         }
         {print human($1)}'
+}
+
+# Función para verificar y mostrar estado de la cuenta Apple
+check_apple_account_status() {
+    echo "<div class='card'><h2>🍏 Estado Cuenta Apple</h2><pre>" >> "$HTML_REPORT"
+
+    apple_accounts=$(defaults read MobileMeAccounts Accounts 2>/dev/null)
+    if [[ -z "$apple_accounts" ]]; then
+        echo "❌ No hay sesión activa de Apple ID en este equipo." >> "$HTML_REPORT"
+    else
+        # Intentamos extraer estado de cuenta de la salida (puede variar)
+        account_status=$(defaults read MobileMeAccounts Accounts | grep -i "AccountStatus" | head -1 2>/dev/null)
+        if [[ -z "$account_status" ]]; then
+            echo "ℹ️ La sesión Apple ID parece activa, pero no se encontró estado detallado." >> "$HTML_REPORT"
+        else
+            if [[ "$account_status" =~ Restricted|Error|Inactive ]]; then
+                echo "⚠️ La cuenta Apple presenta problemas o está restringida: $account_status" >> "$HTML_REPORT"
+            else
+                echo "✅ La cuenta Apple está activa y sin restricciones aparentes." >> "$HTML_REPORT"
+            fi
+        fi
+    fi
+
+    echo "</pre></div>" >> "$HTML_REPORT"
 }
 
 # Generar inicio del HTML con bloque de KeysTelecom centrado y texto blanco
@@ -135,7 +159,7 @@ if system_profiler SPPowerDataType | grep -q "Battery Information"; then
     
     echo "<div class='card'><h2>🔋 Batería</h2><table>" >> "$HTML_REPORT"
     echo "<tr><th>Ciclos:</th><td>$(echo $BATTERY_INFO | awk '{print $1}')</td></tr>" >> "$HTML_REPORT"
-    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>"
+    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>" >> "$HTML_REPORT"
     
     BATTERY_CONDITION=$(echo $BATTERY_INFO | awk '{print $3}')
     if [[ "$BATTERY_CONDITION" == "Normal" ]]; then
@@ -160,67 +184,19 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Apps instaladas + versión + último uso (si disponible)
-INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
-    name=$(basename "$app")
-    last_open=$(mdls -name kMDItemLastUsedDate "$app" 2>/dev/null | awk -F'= ' '{print $2}')
-    version=$(defaults read "${app}/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "Desconocida")
-    echo "$name - Versión: $version - Último uso: $last_open"
-done)
+# Aquí se llama a la función para verificar la cuenta Apple y se imprime en el reporte
+check_apple_account_status
 
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>📦 Aplicaciones Instaladas</h2>
-        <pre>$INSTALLED_APPS</pre>
-    </div>
-EOH
+# --- Continúa aquí con el resto de tu script original ---
 
-# 🛡️ Procesos Sospechosos (malware básico)
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🛡️ Procesos Sospechosos</h2>
-        <pre>$(ps aux | grep -E 'cryptominer|malware|coinminer' | grep -v grep || echo "No se encontraron amenazas evidentes")</pre>
-    </div>
-EOH
-
-# 🧩 Extensiones Kernel no Apple
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🧩 Extensiones Kernel</h2>
-        <pre>$(kextstat | grep -v com.apple)</pre>
-    </div>
-EOH
-
-# ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>⚠️ Últimos Errores (15 min)</h2>
-        <div class="scrollable">
-            <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog || echo "No hay errores recientes.")</pre>
-        </div>
-    </div>
-EOH
-
-# 💡 Recomendaciones finales
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>💡 Recomendaciones</h2>
-        <ul>
-            <li>Actualiza siempre macOS a la última versión disponible.</li>
-            <li>Haz copias de seguridad frecuentes con Time Machine o similar.</li>
-            <li>Evita instalar software de fuentes no confiables.</li>
-            <li>Monitorea el uso de la batería y reemplázala si el ciclo está alto o su estado es deficiente.</li>
-            <li>Ejecuta análisis antivirus con herramientas confiables regularmente.</li>
-            <li>Consulta soporte oficial si detectas procesos o extensiones sospechosas.</li>
-        </ul>
-    </div>
-EOH
+# Por ejemplo, podrías seguir con más pruebas o informes
 
 # Cierre del HTML
-echo "</body></html>" >> "$HTML_REPORT"
+cat >> "$HTML_REPORT" << EOH
+</body>
+</html>
+EOH
 
 # Mensaje final
-echo "✅ Diagnóstico generado: $HTML_REPORT"
+echo "Reporte generado en: $HTML_REPORT"
 
-# Abrir el reporte automáticamente
-open "$HTML_REPORT"
