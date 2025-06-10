@@ -7,6 +7,20 @@ REPORT_DIR="$HOME/Desktop/MacDiagnostic"
 HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S)_v$VERSION.html"
 mkdir -p "$REPORT_DIR"
 
+# Función para verificar y/o instalar Homebrew
+install_brew_if_needed() {
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew no encontrado, instalando..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        echo "Homebrew instalado."
+    else
+        echo "Homebrew ya está instalado."
+    fi
+}
+
+# Ejecutar instalación de brew si falta
+install_brew_if_needed
+
 # Función para formatear tamaños
 format_size() {
     echo $1 | awk '
@@ -26,7 +40,7 @@ cat > "$HTML_REPORT" << EOH
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Diagnóstico Mac - $(hostname) - v$VERSION</title>
+    <title>Diagnóstico Mac - $(hostname)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #fff; color: #333; }
         h1, h2, h3 { color: #333; }
@@ -46,13 +60,16 @@ cat > "$HTML_REPORT" << EOH
         .critical { color: #e74c3c; }
         .warning { color: #f39c12; }
         pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        /* Scroll vertical para errores */
+        .scrollable {
+            max-height: 300px;
+            overflow-y: scroll;
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+        }
         a { color: #1a73e8; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        /* Scroll vertical para errores */
-        #errors {
-            max-height: 300px;
-            overflow-y: auto;
-        }
     </style>
 </head>
 <body>
@@ -63,8 +80,8 @@ cat > "$HTML_REPORT" << EOH
         ✉️ info@keystelecom.com | 
         📧 victor.keymolen@keystelecom.com
     </div>
-    <h1>🔍 Diagnóstico Técnico Completo - $(hostname) - v$VERSION</h1>
-    <p>Generado: $(date)</p>
+    <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
+    <p>Generado: $(date) | Versión: $VERSION</p>
 EOH
 
 # Información del sistema
@@ -118,7 +135,7 @@ if system_profiler SPPowerDataType | grep -q "Battery Information"; then
     
     echo "<div class='card'><h2>🔋 Batería</h2><table>" >> "$HTML_REPORT"
     echo "<tr><th>Ciclos:</th><td>$(echo $BATTERY_INFO | awk '{print $1}')</td></tr>" >> "$HTML_REPORT"
-    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>" >> "$HTML_REPORT"
+    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>"
     
     BATTERY_CONDITION=$(echo $BATTERY_INFO | awk '{print $3}')
     if [[ "$BATTERY_CONDITION" == "Normal" ]]; then
@@ -143,12 +160,12 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Apps instaladas + versión + último uso
+# Apps instaladas + versión + último uso (si disponible)
 INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
     name=$(basename "$app")
-    version=$(mdls -name kMDItemVersion "$app" | awk -F'= ' '{print $2}' | tr -d '"')
-    last_open=$(mdls -name kMDItemLastUsedDate "$app" | awk -F'= ' '{print $2}')
-    echo "$name (v$version) - Último uso: $last_open"
+    last_open=$(mdls -name kMDItemLastUsedDate "$app" 2>/dev/null | awk -F'= ' '{print $2}')
+    version=$(defaults read "${app}/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "Desconocida")
+    echo "$name - Versión: $version - Último uso: $last_open"
 done)
 
 cat >> "$HTML_REPORT" << EOH
@@ -176,39 +193,31 @@ EOH
 
 # ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
 cat >> "$HTML_REPORT" << EOH
-    <div class="card" id="errors">
+    <div class="card">
         <h2>⚠️ Últimos Errores (15 min)</h2>
-        <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog)</pre>
+        <div class="scrollable">
+            <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog || echo "No hay errores recientes.")</pre>
+        </div>
     </div>
 EOH
 
-# Dispositivos Bluetooth emparejados o conectados
-BT_DEVICES=$(system_profiler SPBluetoothDataType | awk '/Connected: Yes|Paired: Yes/ {print $0}')
+# 💡 Recomendaciones finales
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
-        <h2>🔵 Dispositivos Bluetooth Conocidos</h2>
-        <pre>${BT_DEVICES:-No se detectaron dispositivos Bluetooth conectados o emparejados}</pre>
+        <h2>💡 Recomendaciones</h2>
+        <ul>
+            <li>Actualiza siempre macOS a la última versión disponible.</li>
+            <li>Haz copias de seguridad frecuentes con Time Machine o similar.</li>
+            <li>Evita instalar software de fuentes no confiables.</li>
+            <li>Monitorea el uso de la batería y reemplázala si el ciclo está alto o su estado es deficiente.</li>
+            <li>Ejecuta análisis antivirus con herramientas confiables regularmente.</li>
+            <li>Consulta soporte oficial si detectas procesos o extensiones sospechosas.</li>
+        </ul>
     </div>
 EOH
 
-# Dispositivos USB conectados
-USB_DEVICES=$(system_profiler SPUSBDataType)
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🔌 Dispositivos USB Conectados</h2>
-        <pre>$USB_DEVICES</pre>
-    </div>
-EOH
+# Cierre del HTML
+echo "</body></html>" >> "$HTML_REPORT"
 
-# Recomendaciones técnicas con link y contacto
-cat >> "$HTML_REPORT" << EOH
-    <div class="card" style="background:#222;color:#fff;text-align:center;">
-        <h2>📞 Soporte Técnico KeysTelecom</h2>
-        <p>Visita <a href="https://keystelecom.com/" target="_blank" style="color:#4caf50;">https://keystelecom.com/</a> para más información.</p>
-        <p>📞 Tel: 52 5574347924 | ✉️ info@keystelecom.com | 📧 victor.keymolen@keystelecom.com</p>
-    </div>
-</body>
-</html>
-EOH
-
-echo "Reporte generado: $HTML_REPORT"
+# Mensaje final
+echo "✅ Diagnóstico generado: $HTML_REPORT"
