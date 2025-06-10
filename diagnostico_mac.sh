@@ -4,35 +4,8 @@ VERSION="1.1"
 
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
-HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S).html"
+HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S)_v$VERSION.html"
 mkdir -p "$REPORT_DIR"
-
-# Función para instalar Homebrew si no existe
-install_homebrew() {
-    if ! command -v brew &>/dev/null; then
-        echo "Homebrew no encontrado. Instalando Homebrew..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        # Añadir Homebrew al PATH para esta sesión
-        eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || eval "$(/usr/local/bin/brew shellenv)" 2>/dev/null
-    else
-        echo "Homebrew ya instalado."
-    fi
-}
-
-# Función para instalar paquete con brew si no existe
-ensure_brew_package() {
-    if ! command -v "$1" &>/dev/null; then
-        echo "Instalando $1..."
-        brew install "$1"
-    else
-        echo "$1 ya instalado."
-    fi
-}
-
-# Instalar Homebrew y paquetes necesarios (htop, ncdu)
-install_homebrew
-ensure_brew_package "htop"
-ensure_brew_package "ncdu"
 
 # Función para formatear tamaños
 format_size() {
@@ -75,14 +48,10 @@ cat > "$HTML_REPORT" << EOH
         pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
         a { color: #1a73e8; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        /* Scroll vertical para últimos errores */
-        .scrollable-error {
+        /* Scroll vertical para errores */
+        #errors {
             max-height: 300px;
             overflow-y: auto;
-            background: #f0f0f0;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
         }
     </style>
 </head>
@@ -94,11 +63,9 @@ cat > "$HTML_REPORT" << EOH
         ✉️ info@keystelecom.com | 
         📧 victor.keymolen@keystelecom.com
     </div>
-    <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
+    <h1>🔍 Diagnóstico Técnico Completo - $(hostname) - v$VERSION</h1>
     <p>Generado: $(date)</p>
 EOH
-
-# El resto igual excepto el bloque de errores:
 
 # Información del sistema
 cat >> "$HTML_REPORT" << EOH
@@ -176,11 +143,12 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Apps instaladas + último uso (si disponible)
+# Apps instaladas + versión + último uso
 INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
     name=$(basename "$app")
+    version=$(mdls -name kMDItemVersion "$app" | awk -F'= ' '{print $2}' | tr -d '"')
     last_open=$(mdls -name kMDItemLastUsedDate "$app" | awk -F'= ' '{print $2}')
-    echo "$name - Último uso: $last_open"
+    echo "$name (v$version) - Último uso: $last_open"
 done)
 
 cat >> "$HTML_REPORT" << EOH
@@ -208,11 +176,9 @@ EOH
 
 # ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
 cat >> "$HTML_REPORT" << EOH
-    <div class="card">
+    <div class="card" id="errors">
         <h2>⚠️ Últimos Errores (15 min)</h2>
-        <div class="scrollable-error">
-            <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog)</pre>
-        </div>
+        <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog)</pre>
     </div>
 EOH
 
@@ -234,21 +200,15 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Recomendaciones finales
+# Recomendaciones técnicas con link y contacto
 cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>💡 Recomendaciones</h2>
-        <ul>
-            <li>Actualiza macOS y apps regularmente.</li>
-            <li>Revisa procesos con <code>htop</code> para detectar consumo alto.</li>
-            <li>Usa <code>ncdu</code> para revisar uso de disco.</li>
-            <li>Para análisis de malware más completo considera herramientas como Malwarebytes.</li>
-            <li>Si encuentras extensiones de kernel sospechosas, investiga y remueve si no son necesarias.</li>
-        </ul>
+    <div class="card" style="background:#222;color:#fff;text-align:center;">
+        <h2>📞 Soporte Técnico KeysTelecom</h2>
+        <p>Visita <a href="https://keystelecom.com/" target="_blank" style="color:#4caf50;">https://keystelecom.com/</a> para más información.</p>
+        <p>📞 Tel: 52 5574347924 | ✉️ info@keystelecom.com | 📧 victor.keymolen@keystelecom.com</p>
     </div>
 </body>
 </html>
 EOH
 
-# Abrir el reporte
-open "$HTML_REPORT"
+echo "Reporte generado: $HTML_REPORT"
