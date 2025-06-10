@@ -64,4 +64,15 @@ cat >> "$HTML_REPORT" << EOH
         </ul>
         <p>📞 Para más información o soporte técnico, contacta con nosotros:</p>
         <ul>
-            <li><strong>Sitio Web:</strong> <a href="https://key
+            <li><strong>Sitio Web:</strong> <a href="https://keystelecom.com/" target="_blank">https://keystelecom.com/</a></li>
+            <li><strong>Teléfono:</strong> +52 55 7434 7924</li>
+            <li><strong>Correo:</strong> <a href="mailto:info@keystelecom.com">info@keystelecom.com</a> | <a href="mailto:victor.keymolen@keystelecom.com">victor.keymolen@keystelecom.com</a></li>
+        </ul>
+    </div>
+</body>
+</html>
+EOH
+
+# Abrir reporte
+open "$HTML_REPORT"
+echo "✅ Reporte generado: $HTML_REPORT"
