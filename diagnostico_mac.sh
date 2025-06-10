@@ -1,78 +1,89 @@
 #!/bin/bash
 
-# Configuración
-REPORT_DIR="$HOME/Desktop/MacDiagnostic"
-HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S).html"
-mkdir -p "$REPORT_DIR"
+# Script de Diagnóstico para Mac con HTML
+# Autor: [Tu nombre]
+# Fecha: [Fecha]
+# Versión: 1.0
 
-# Función para formatear tamaños
-format_size() {
-    echo $1 | awk '
-        function human(x) {
-            s="KB MB GB TB";
-            while( x>=1024 && length(s)>1 ) {
-                x/=1024;
-                s=substr(s,4);
-            }
-            return sprintf("%.1f %s", x, s);
-        }
-        {print human($1)}'
-}
+# Variables
+OUTPUT_DIR=~/Desktop
+OUTPUT_FILE="$OUTPUT_DIR/reporte_diagnostico_mac.html"
+HOSTNAME=$(scutil --get ComputerName)
+FECHA=$(date)
 
-# Generar inicio del HTML
-cat > "$HTML_REPORT" << EOH
-<!DOCTYPE html>
-<html>
+# Crear archivo HTML
+echo "<!DOCTYPE html>
+<html lang='es'>
 <head>
-    <title>Diagnóstico Mac - $(hostname)</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; }
-        .card { background: #f9f9f9; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-        .critical { color: #e74c3c; }
-        .warning { color: #f39c12; }
-        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
-        .header { background: #002c54; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 28px; }
-        .header a, .footer a { color: #00d0ff; text-decoration: none; }
-    </style>
+  <meta charset='UTF-8'>
+  <title>Reporte de Diagnóstico de $HOSTNAME</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; }
+    h1 { background-color: #2c3e50; color: white; padding: 10px; }
+    h2 { color: #2c3e50; }
+    pre { background-color: #ecf0f1; padding: 10px; overflow-x: auto; }
+    .keys-telecom { text-align: center; color: white; font-size: 18px; background-color: #2c3e50; padding: 8px; margin-top: 30px; }
+  </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🛰️ KeysTelecom - Diagnóstico Técnico</h1>
-        <p><strong>Sitio Web:</strong> <a href="https://keystelecom.com/" target="_blank">https://keystelecom.com/</a></p>
-        <p><strong>Teléfono:</strong> +52 55 7434 7924</p>
-        <p><strong>Correo:</strong> <a href="mailto:info@keystelecom.com">info@keystelecom.com</a> | <a href="mailto:victor.keymolen@keystelecom.com">victor.keymolen@keystelecom.com</a></p>
-    </div>
+<h1>Reporte de Diagnóstico - $HOSTNAME</h1>
+<p><strong>Fecha de generación:</strong> $FECHA</p>
+" > "$OUTPUT_FILE"
 
-    <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
-    <p>Generado: $(date)</p>
-EOH
+# Función para agregar secciones al HTML
+add_section() {
+  SECTION_TITLE=$1
+  COMMAND_OUTPUT=$2
+  echo "<h2>$SECTION_TITLE</h2>
+<pre>$COMMAND_OUTPUT</pre>" >> "$OUTPUT_FILE"
+}
 
-# (Las secciones intermedias permanecen exactamente igual: sistema, memoria, batería, red, seguridad...)
+# 1. Información del sistema
+add_section "Información del Sistema" "$(system_profiler SPHardwareDataType)"
 
-# Recomendaciones con contacto
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🔧 Recomendaciones Técnicas</h2>
-        <ul>
-            <li>Verificar espacio en disco: <code>sudo ncdu /</code></li>
-            <li>Monitor en tiempo real: <code>htop</code> (instalar vía Homebrew)</li>
-            <li>Ver logs del sistema: <code>log show --last 1h</code></li>
-        </ul>
-        <p>📞 Para más información o soporte técnico, contacta con nosotros:</p>
-        <ul>
-            <li><strong>Sitio Web:</strong> <a href="https://keystelecom.com/" target="_blank">https://keystelecom.com/</a></li>
-            <li><strong>Teléfono:</strong> +52 55 7434 7924</li>
-            <li><strong>Correo:</strong> <a href="mailto:info@keystelecom.com">info@keystelecom.com</a> | <a href="mailto:victor.keymolen@keystelecom.com">victor.keymolen@keystelecom.com</a></li>
-        </ul>
-    </div>
-</body>
-</html>
-EOH
+# 2. Espacio en disco
+add_section "Uso del Disco" "$(df -h /)"
 
-# Abrir reporte
-open "$HTML_REPORT"
-echo "✅ Reporte generado: $HTML_REPORT"
+# 3. Procesos que consumen más CPU
+add_section "Procesos que más consumen CPU" "$(ps -Ao %cpu,command | sort -nr | head -n 10)"
+
+# 4. Extensiones de kernel de terceros (no de Apple)
+add_section "Extensiones del Kernel (3ros)" "$(kextstat | grep -v com.apple || echo 'No se encontraron extensiones de terceros.')"
+
+# 5. Últimos errores del sistema
+add_section "Últimos errores del sistema (system.log)" "$(log show --predicate 'eventMessage contains[c] "error"' --last 1h | tail -n 50)"
+
+# 6. Dispositivos USB conectados
+add_section "Dispositivos USB conectados" "$(system_profiler SPUSBDataType)"
+
+# 7. Dispositivos Bluetooth emparejados
+add_section "Dispositivos Bluetooth" "$(system_profiler SPBluetoothDataType | grep -E 'Connected:|Device Name:' || echo 'No hay dispositivos Bluetooth conectados.')"
+
+# 8. Verificación básica de malware (archivos sospechosos en LaunchAgents o LaunchDaemons)
+add_section "Posibles Agentes Maliciosos (LaunchAgents/Daemons)" "$(find /Library/LaunchAgents /Library/LaunchDaemons ~/Library/LaunchAgents -name '*.plist' 2>/dev/null | grep -v com.apple || echo 'No se detectaron agentes sospechosos.')"
+
+# 9. Información de red
+add_section "Configuración de Red" "$(ifconfig)"
+
+# 10. Información del sistema operativo
+add_section "Versión de macOS" "$(sw_vers)"
+
+# Información de Keys Telecom (centrado y visible)
+echo "<div class='keys-telecom'>
+  <strong>Keys Telecom</strong><br>
+  IT Admin: Hector J. Becerra<br>
+  Email: keys_telecom@proton.me<br>
+  Última actualización del script: Junio 2025
+</div>" >> "$OUTPUT_FILE"
+
+# Finalizar HTML
+echo "</body></html>" >> "$OUTPUT_FILE"
+
+# Abrir el archivo automáticamente si no hubo errores
+if [ -f "$OUTPUT_FILE" ]; then
+  open "$OUTPUT_FILE"
+  echo "✅ Diagnóstico completado exitosamente. Archivo generado: $OUTPUT_FILE"
+else
+  echo "❌ Error al generar el archivo de diagnóstico."
+  exit 1
+fi
