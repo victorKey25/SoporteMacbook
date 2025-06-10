@@ -19,26 +19,34 @@ format_size() {
         {print human($1)}'
 }
 
-# Generar inicio del HTML
+# Generar inicio del HTML con header personalizado
 cat > "$HTML_REPORT" << EOH
 <!DOCTYPE html>
 <html>
 <head>
     <title>Diagnóstico Mac - $(hostname)</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; }
-        .card { background: #f9f9f9; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #fff; color: #222; }
+        h1, h2, h3 { color: #333; }
+        .header { background: #004080; color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+        .header h1 { margin: 0 0 5px 0; font-size: 2em; }
+        .header a { color: #aaddff; text-decoration: none; }
+        .header a:hover { text-decoration: underline; }
+        .card { background: #f9f9f9; border-radius: 8px; padding: 15px; margin-bottom: 20px; box-shadow: 0 0 8px #ccc; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-        .critical { color: #e74c3c; }
-        .warning { color: #f39c12; }
-        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; vertical-align: top; }
+        .critical { color: #e74c3c; font-weight: bold; }
+        .warning { color: #f39c12; font-weight: bold; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; max-height: 300px; }
+        ul { padding-left: 20px; }
     </style>
 </head>
 <body>
-    <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
-    <p>Generado: $(date)</p>
+    <div class="header">
+        <h1>🛰️ KeysTelecom - Diagnóstico Técnico Completo</h1>
+        <p>🌐 <a href="https://keystelecom.com/" target="_blank">https://keystelecom.com/</a> | 📞 52 5574347924 | ✉️ <a href="mailto:info@keystelecom.com">info@keystelecom.com</a> | 📧 <a href="mailto:victor.keymolen@keystelecom.com">victor.keymolen@keystelecom.com</a></p>
+        <p>Generado: $(date)</p>
+    </div>
 EOH
 
 # Información del sistema
@@ -61,12 +69,12 @@ cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🧠 Memoria</h2>
         <table>
-            <tr><th>Total RAM:</th><td>$(sysctl -n hw.memsize | awk '{print $0/1073741824" GB"}')</td></tr>
+            <tr><th>Total RAM:</th><td>$(sysctl -n hw.memsize | awk '{printf "%.2f GB", $0/1073741824}')</td></tr>
             <tr><th>Uso Actual:</th><td>$(top -l 1 | grep -E "^PhysMem" | awk '{print "Used: "$2", Free: "$6}')</td></tr>
             <tr><th>Swap:</th><td>$(sysctl vm.swapusage | awk '{print $3" used, "$7" free"}')</td></tr>
         </table>
         <h3>Top Procesos (RAM):</h3>
-        <pre>$(ps -ercmo %mem,pid,command | head -6)</pre>
+        <pre>$(ps -e -o %mem,pid,comm | sort -nr | head -6)</pre>
     </div>
 EOH
 
@@ -117,10 +125,13 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Apps instaladas + último uso (si disponible)
+# Aplicaciones instaladas + último uso
 INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
     name=$(basename "$app")
-    last_open=$(mdls -name kMDItemLastUsedDate "$app" | awk -F'= ' '{print $2}')
+    last_open=$(mdls -name kMDItemLastUsedDate "$app" 2>/dev/null | awk -F'= ' '{print $2}')
+    if [[ -z "$last_open" ]]; then
+        last_open="Nunca"
+    fi
     echo "$name - Último uso: $last_open"
 done)
 
@@ -131,7 +142,52 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Recomendaciones
+# Verificación básica de malware
+MALWARE_PROCESSES=$(ps aux | grep -Ei 'cryptominer|malware|coinminer' | grep -v grep || echo "No se encontraron amenazas evidentes")
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🛡️ Procesos Sospechosos</h2>
+        <pre>$MALWARE_PROCESSES</pre>
+    </div>
+EOH
+
+# Extensiones kernel no Apple
+KEXTS=$(kextstat | grep -v com.apple || echo "No se encontraron extensiones kernel de terceros")
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🧩 Extensiones Kernel</h2>
+        <pre>$KEXTS</pre>
+    </div>
+EOH
+
+# Últimos errores del sistema (15 min)
+ERRORS=$(log show --last 15m --predicate 'eventMessage CONTAINS[c] "error"' --style syslog 2>/dev/null || echo "No se pudieron obtener logs")
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>⚠️ Últimos Errores (15 minutos)</h2>
+        <pre>$ERRORS</pre>
+    </div>
+EOH
+
+# Dispositivos Bluetooth conocidos (emparejados/conectados)
+BT_DEVICES=$(system_profiler SPBluetoothDataType 2>/dev/null | awk '/Connected: Yes|Paired: Yes/{print prev; print $0} {prev=$0}' | grep -B1 -E 'Connected: Yes|Paired: Yes' || echo "No se encontraron dispositivos Bluetooth conectados o emparejados")
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>📶 Dispositivos Bluetooth Conocidos</h2>
+        <pre>$BT_DEVICES</pre>
+    </div>
+EOH
+
+# Dispositivos USB conectados
+USB_DEVICES=$(system_profiler SPUSBDataType 2>/dev/null || echo "No se pudo obtener información de dispositivos USB")
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🔌 Dispositivos USB Conectados</h2>
+        <pre>$USB_DEVICES</pre>
+    </div>
+EOH
+
+# Recomendaciones técnicas
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🔧 Recomendaciones Técnicas</h2>
@@ -145,6 +201,6 @@ cat >> "$HTML_REPORT" << EOH
 </html>
 EOH
 
-# Abrir reporte
+# Abrir reporte en navegador
 open "$HTML_REPORT"
 echo "✅ Reporte generado: $HTML_REPORT"
