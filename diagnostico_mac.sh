@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.1"
+VERSION="1.2"
 
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
@@ -221,3 +221,6 @@ echo "</body></html>" >> "$HTML_REPORT"
 
 # Mensaje final
 echo "✅ Diagnóstico generado: $HTML_REPORT"
+
+# Abrir el reporte automáticamente
+open "$HTML_REPORT"
