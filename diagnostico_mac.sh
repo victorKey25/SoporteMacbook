@@ -117,7 +117,7 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Aplicaciones instaladas
+# Apps instaladas + último uso (si disponible)
 INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
     name=$(basename "$app")
     last_open=$(mdls -name kMDItemLastUsedDate "$app" | awk -F'= ' '{print $2}')
@@ -128,28 +128,6 @@ cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>📦 Aplicaciones Instaladas</h2>
         <pre>$INSTALLED_APPS</pre>
-    </div>
-EOH
-
-# Seguridad y Hardware
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🔐 Seguridad y Hardware</h2>
-
-        <h3>🛡️ Procesos Sospechosos</h3>
-        <pre>$(ps aux | grep -E 'cryptominer|malware|coinminer' | grep -v grep || echo "No se encontraron amenazas evidentes")</pre>
-
-        <h3>🧩 Extensiones Kernel No Apple</h3>
-        <pre>$(kextstat | grep -v com.apple || echo "No se encontraron extensiones de terceros")</pre>
-
-        <h3>⚠️ Últimos Errores (15 minutos)</h3>
-        <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog 2>/dev/null | tail -n 100)</pre>
-
-        <h3>📶 Dispositivos Bluetooth Emparejados</h3>
-        <pre>$(system_profiler SPBluetoothDataType | awk '/Connected: Yes/{print device} /Name:/{device=$2}' || echo "No se encontraron dispositivos emparejados")</pre>
-
-        <h3>🔌 Dispositivos USB Conectados</h3>
-        <pre>$(system_profiler SPUSBDataType | grep -E "Product ID|Vendor ID|Location ID|Manufacturer|Serial Number" || echo "No se encontraron dispositivos USB")</pre>
     </div>
 EOH
 
