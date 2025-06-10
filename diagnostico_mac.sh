@@ -1,9 +1,38 @@
 #!/bin/bash
 
+VERSION="1.1"
+
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
 HTML_REPORT="$REPORT_DIR/report_$(date +%Y%m%d_%H%M%S).html"
 mkdir -p "$REPORT_DIR"
+
+# Función para instalar Homebrew si no existe
+install_homebrew() {
+    if ! command -v brew &>/dev/null; then
+        echo "Homebrew no encontrado. Instalando Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Añadir Homebrew al PATH para esta sesión
+        eval "$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || eval "$(/usr/local/bin/brew shellenv)" 2>/dev/null
+    else
+        echo "Homebrew ya instalado."
+    fi
+}
+
+# Función para instalar paquete con brew si no existe
+ensure_brew_package() {
+    if ! command -v "$1" &>/dev/null; then
+        echo "Instalando $1..."
+        brew install "$1"
+    else
+        echo "$1 ya instalado."
+    fi
+}
+
+# Instalar Homebrew y paquetes necesarios (htop, ncdu)
+install_homebrew
+ensure_brew_package "htop"
+ensure_brew_package "ncdu"
 
 # Función para formatear tamaños
 format_size() {
@@ -24,7 +53,7 @@ cat > "$HTML_REPORT" << EOH
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Diagnóstico Mac - $(hostname)</title>
+    <title>Diagnóstico Mac - $(hostname) - v$VERSION</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #fff; color: #333; }
         h1, h2, h3 { color: #333; }
@@ -46,6 +75,15 @@ cat > "$HTML_REPORT" << EOH
         pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
         a { color: #1a73e8; text-decoration: none; }
         a:hover { text-decoration: underline; }
+        /* Scroll vertical para últimos errores */
+        .scrollable-error {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -59,6 +97,8 @@ cat > "$HTML_REPORT" << EOH
     <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
     <p>Generado: $(date)</p>
 EOH
+
+# El resto igual excepto el bloque de errores:
 
 # Información del sistema
 cat >> "$HTML_REPORT" << EOH
@@ -166,11 +206,13 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# ⚠️ Últimos errores del sistema (15 minutos)
+# ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>⚠️ Últimos Errores (15 min)</h2>
-        <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog)</pre>
+        <div class="scrollable-error">
+            <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog)</pre>
+        </div>
     </div>
 EOH
 
@@ -192,23 +234,21 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Recomendaciones técnicas con contacto KeysTelecom
+# Recomendaciones finales
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
-        <h2>🔧 Recomendaciones Técnicas</h2>
+        <h2>💡 Recomendaciones</h2>
         <ul>
-            <li>Verificar espacio en disco: <code>sudo ncdu /</code></li>
-            <li>Monitor en tiempo real: <code>htop</code> (instalar via Homebrew)</li>
-            <li>Ver logs del sistema: <code>log show --last 1h</code></li>
-            <li>Para soporte, contacta a:</li>
+            <li>Actualiza macOS y apps regularmente.</li>
+            <li>Revisa procesos con <code>htop</code> para detectar consumo alto.</li>
+            <li>Usa <code>ncdu</code> para revisar uso de disco.</li>
+            <li>Para análisis de malware más completo considera herramientas como Malwarebytes.</li>
+            <li>Si encuentras extensiones de kernel sospechosas, investiga y remueve si no son necesarias.</li>
         </ul>
-        <p>🌐 <a href="https://keystelecom.com/" target="_blank" rel="noopener noreferrer">https://keystelecom.com/</a> | 📞 52 5574347924 | ✉️ info@keystelecom.com | 📧 victor.keymolen@keystelecom.com</p>
     </div>
 </body>
 </html>
 EOH
 
-echo "Reporte generado en: $HTML_REPORT"
-
-
-
+# Abrir el reporte
+open "$HTML_REPORT"
