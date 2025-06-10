@@ -34,41 +34,39 @@ cat <<EOF > "$OUTPUT"
   <title>Diagnóstico Técnico Completo</title>
   <style>
     body {
-      font-family: "Helvetica Neue", sans-serif;
-      background-color: #1e1e1e;
-      color: #f0f0f0;
+      font-family: "Segoe UI", Helvetica, sans-serif;
+      background-color: #fff;
+      color: #111;
       margin: 0;
       padding: 0;
     }
     header {
-      background-color: #333;
-      color: #fff;
+      background-color: #f8f8f8;
+      color: #111;
       text-align: center;
-      padding: 30px 10px;
+      padding: 40px 10px 20px;
     }
     header h1 {
       margin: 0;
       font-size: 40px;
-      font-weight: bold;
     }
     header p {
-      margin: 10px 0 0;
+      margin: 5px 0;
       font-size: 16px;
-      color: #ccc;
     }
     h2 {
-      border-bottom: 2px solid #444;
+      border-bottom: 2px solid #ccc;
       padding-bottom: 5px;
       margin-top: 40px;
     }
     section {
       padding: 20px;
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid #ddd;
     }
     pre {
       white-space: pre-wrap;
       word-wrap: break-word;
-      background-color: #111;
+      background-color: #f4f4f4;
       padding: 10px;
       border-radius: 6px;
       overflow-x: auto;
@@ -77,53 +75,12 @@ cat <<EOF > "$OUTPUT"
       max-height: 300px;
       max-width: 100%;
       overflow: auto;
-      border: 1px solid #444;
-      background-color: #111;
+      border: 1px solid #ccc;
+      background-color: #f4f4f4;
       border-radius: 6px;
     }
     footer {
       text-align: center;
       padding: 20px;
       font-size: 14px;
-      color: #aaa;
-      border-top: 1px solid #444;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>🛰️ Keys Telecom</h1>
-    <p>🌐 <a href="https://keystelecom.com/" style="color: #00afff;">https://keystelecom.com/</a> |
-       📞 52 5574347924 |
-       ✉️ info@keystelecom.com |
-       📧 victor.keymolen@keystelecom.com</p>
-    <h2>Diagnóstico Técnico Completo</h2>
-  </header>
-EOF
-
-# Agregar secciones al HTML
-add_section "📦 Información de Hardware" "$HARDWARE_INFO"
-add_section "💽 Almacenamiento" "$STORAGE_INFO"
-add_section "⚙️ Procesos Actuales" "$PROCESS_INFO"
-add_section "🌐 Configuración de Red" "$NETWORK_INFO"
-add_section "🧩 Extensiones del Kernel No Nativas" "$KEXTS"
-add_section "🛡️ Archivos Sospechosos o Malware Básico" "$MALWARE"
-add_scroll_section "⚠️ Últimos Errores (15 min)" "$ERRORS"
-add_section "🔌 Dispositivos USB y Bluetooth" "$USB_BT"
-
-# Footer
-cat <<EOF >> "$OUTPUT"
-  <footer>
-    <h2>🛠️ Recomendaciones Técnicas</h2>
-    <p>Si notas comportamientos anómalos o errores frecuentes, recomendamos contactar a:</p>
-    <p>🌐 <a href="https://keystelecom.com/" style="color: #00afff;">https://keystelecom.com/</a> |
-       📞 52 5574347924 |
-       ✉️ info@keystelecom.com |
-       📧</p>
-  </footer>
-</body>
-</html>
-EOF
-
-# Abrir reporte
-open "$OUTPUT" && echo "✅ Diagnóstico generado exitosamente: $OUTPUT"
+      color: #555;
