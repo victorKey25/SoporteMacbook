@@ -35,15 +35,16 @@ format_size() {
         {print human($1)}'
 }
 
-# Nueva función para obtener la cuenta Apple
-get_apple_account() {
-    # Obtener cuenta Apple actual (si está configurada)
-    apple_account=$(defaults read MobileMeAccounts Accounts 2>/dev/null | grep -m1 -A 1 "AccountID" | grep -o '".*"' | tr -d '"')
-    if [[ -z "$apple_account" ]]; then
-        echo "No se encontró cuenta Apple configurada."
+# Función nueva: Obtener cuenta Apple
+print_apple_account() {
+    echo "<div class='card'><h2>🍎 Cuenta Apple</h2><table>"
+    APPLE_ID=$(defaults read MobileMeAccounts Accounts | grep -oE 'AccountID = "[^"]+"' | head -1 | awk -F'"' '{print $2}')
+    if [ -n "$APPLE_ID" ]; then
+        echo "<tr><th>Apple ID:</th><td>$APPLE_ID</td></tr>"
     else
-        echo "$apple_account"
+        echo "<tr><th>Apple ID:</th><td>No encontrada</td></tr>"
     fi
+    echo "</table></div>"
 }
 
 # Generar inicio del HTML con bloque de KeysTelecom centrado y texto blanco
@@ -136,13 +137,8 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Cuenta Apple
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🍎 Cuenta Apple</h2>
-        <p>$(get_apple_account)</p>
-    </div>
-EOH
+# Insertar cuenta Apple
+print_apple_account >> "$HTML_REPORT"
 
 # Batería
 if system_profiler SPPowerDataType | grep -q "Battery Information"; then
@@ -198,45 +194,23 @@ EOH
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🛡️ Procesos Sospechosos</h2>
-        <pre>$(ps aux | grep -E 'cryptominer|malware|coinminer' | grep -v grep || echo "No se encontraron amenazas evidentes")</pre>
+        <pre>$(ps aux | grep -E 'cryptominer|malware|coinminer' | grep -v grep || echo "No se detectaron procesos sospechosos")</pre>
     </div>
 EOH
 
-# 🧩 Extensiones Kernel no Apple
+# Últimos 20 errores de sistema
 cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>🧩 Extensiones Kernel</h2>
-        <pre>$(kextstat | grep -v com.apple)</pre>
-    </div>
-EOH
-
-# ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>⚠️ Últimos Errores (15 min)</h2>
-        <div class="scrollable">
-            <pre>$(log show --last 15m --predicate 'eventMessage contains "error"' --style syslog || echo "No hay errores recientes.")</pre>
-        </div>
-    </div>
-EOH
-
-# 💡 Recomendaciones finales
-cat >> "$HTML_REPORT" << EOH
-    <div class="card">
-        <h2>💡 Recomendaciones</h2>
-        <ul>
-            <li>Actualiza siempre macOS a la última versión disponible.</li>
-            <li>Haz copias de seguridad frecuentes con Time Machine o similar.</li>
-            <li>Evita instalar software de fuentes no confiables.</li>
-            <li>Monitorea el uso de la batería y reemplázala si el ciclo está alto o su estado es deficiente.</li>
-            <li>Ejecuta análisis antivirus con herramientas confiables regularmente.</li>
-            <li>Consulta soporte oficial si detectas procesos o extensiones sospechosas.</li>
-        </ul>
+    <div class="card scrollable">
+        <h2>❗ Últimos errores del sistema (20)</h2>
+        <pre>$(log show --predicate 'eventType == error' --last 1d --info --style syslog | tail -20)</pre>
     </div>
 EOH
 
 # Cierre del HTML
-echo "</body></html>" >> "$HTML_REPORT"
+cat >> "$HTML_REPORT" << EOH
+</body>
+</html>
+EOH
 
-# Mensaje final
-echo "✅ Diagnóstico generado: $
+# Abrir el reporte automáticamente
+open "$HTML_REPORT"
