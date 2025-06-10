@@ -35,30 +35,6 @@ format_size() {
         {print human($1)}'
 }
 
-# Función para verificar y mostrar estado de la cuenta Apple
-check_apple_account_status() {
-    echo "<div class='card'><h2>🍏 Estado Cuenta Apple</h2><pre>" >> "$HTML_REPORT"
-
-    apple_accounts=$(defaults read MobileMeAccounts Accounts 2>/dev/null)
-    if [[ -z "$apple_accounts" ]]; then
-        echo "❌ No hay sesión activa de Apple ID en este equipo." >> "$HTML_REPORT"
-    else
-        # Intentamos extraer estado de cuenta de la salida (puede variar)
-        account_status=$(defaults read MobileMeAccounts Accounts | grep -i "AccountStatus" | head -1 2>/dev/null)
-        if [[ -z "$account_status" ]]; then
-            echo "ℹ️ La sesión Apple ID parece activa, pero no se encontró estado detallado." >> "$HTML_REPORT"
-        else
-            if [[ "$account_status" =~ Restricted|Error|Inactive ]]; then
-                echo "⚠️ La cuenta Apple presenta problemas o está restringida: $account_status" >> "$HTML_REPORT"
-            else
-                echo "✅ La cuenta Apple está activa y sin restricciones aparentes." >> "$HTML_REPORT"
-            fi
-        fi
-    fi
-
-    echo "</pre></div>" >> "$HTML_REPORT"
-}
-
 # Generar inicio del HTML con bloque de KeysTelecom centrado y texto blanco
 cat > "$HTML_REPORT" << EOH
 <!DOCTYPE html>
@@ -159,7 +135,7 @@ if system_profiler SPPowerDataType | grep -q "Battery Information"; then
     
     echo "<div class='card'><h2>🔋 Batería</h2><table>" >> "$HTML_REPORT"
     echo "<tr><th>Ciclos:</th><td>$(echo $BATTERY_INFO | awk '{print $1}')</td></tr>" >> "$HTML_REPORT"
-    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>" >> "$HTML_REPORT"
+    echo "<tr><th>Capacidad Máxima:</th><td>$(echo $BATTERY_INFO | awk '{print $2}')</td></tr>"
     
     BATTERY_CONDITION=$(echo $BATTERY_INFO | awk '{print $3}')
     if [[ "$BATTERY_CONDITION" == "Normal" ]]; then
@@ -184,12 +160,76 @@ cat >> "$HTML_REPORT" << EOH
     </div>
 EOH
 
-# Aquí se llama a la función para verificar la cuenta Apple y se imprime en el reporte
-check_apple_account_status
+# Apps instaladas + versión + último uso (si disponible)
+INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
+    name=$(basename "$app")
+    last_open=$(mdls -name kMDItemLastUsedDate "$app" 2>/dev/null | awk -F'= ' '{print $2}')
+    version=$(defaults read "${app}/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo "Desconocida")
+    echo "$name - Versión: $version - Último uso: $last_open"
+done)
 
-# --- Continúa aquí con el resto de tu script original ---
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>📦 Aplicaciones Instaladas</h2>
+        <pre>$INSTALLED_APPS</pre>
+    </div>
+EOH
 
-# Por ejemplo, podrías seguir con más pruebas o informes
+# 🛡️ Procesos Sospechosos (malware básico)
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🛡️ Procesos Sospechosos</h2>
+        <pre>$(ps aux | grep -E 'cryptominer|malware|coinminer' | grep -v grep || echo "No se encontraron amenazas evidentes")</pre>
+    </div>
+EOH
+
+# 🧩 Extensiones Kernel no Apple
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🧩 Extensiones Kernel</h2>
+        <pre>$(kextstat | grep -v com.apple)</pre>
+    </div>
+EOH
+
+# ⚠️ Últimos errores del sistema (15 minutos) con scroll vertical
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>⚠️ Últimos errores del sistema (últimos 15 minutos)</h2>
+        <div class="scrollable">
+            <pre>$(log show --predicate 'eventType == error || eventType == fault' --last 15m --info --debug | tail -1000)</pre>
+        </div>
+    </div>
+EOH
+
+# 📡 Bluetooth
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>📡 Dispositivos Bluetooth</h2>
+        <pre>$(system_profiler SPBluetoothDataType | grep -E 'Name:|Address:|Connected:')</pre>
+    </div>
+EOH
+
+# 🔌 Dispositivos USB
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🔌 Dispositivos USB</h2>
+        <pre>$(system_profiler SPUSBDataType | grep -E 'Product ID:|Vendor ID:|Location ID:|Manufacturer:|Serial Number:|Version:')</pre>
+    </div>
+EOH
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Aquí añadimos la sección del estado de la cuenta Apple
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+APPLE_ID_STATUS=$(defaults read MobileMeAccounts Accounts 2>/dev/null | grep -A 4 -m 1 'AccountID' || echo "No hay sesión Apple ID activa")
+
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🍎 Estado Cuenta Apple</h2>
+        <pre>$APPLE_ID_STATUS</pre>
+        <p>Nota: La información se obtiene localmente y puede no reflejar el estado completo.</p>
+    </div>
+EOH
 
 # Cierre del HTML
 cat >> "$HTML_REPORT" << EOH
@@ -197,6 +237,7 @@ cat >> "$HTML_REPORT" << EOH
 </html>
 EOH
 
-# Mensaje final
-echo "Reporte generado en: $HTML_REPORT"
+# Abrir reporte
+open "$HTML_REPORT"
 
+echo "Reporte generado en: $HTML_REPORT"
