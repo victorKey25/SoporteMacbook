@@ -1,81 +1,38 @@
 #!/bin/bash
 
-# Versión 1.2 - Se agregó impresión de cuenta Apple ID y apertura automática del reporte
+# Versión 1.1
+# Genera un diagnóstico básico de sistema en formato HTML para Mac
+# Incluye: Hardware, Software, Aplicaciones, Extensiones, Dispositivos, Recomendaciones
 
-# Imprimir la cuenta Apple ID ingresada en la Mac (si está disponible)
-echo "Cuenta Apple ID: $(defaults read MobileMeAccounts 2>/dev/null | grep AccountID | head -n 1 | awk -F '= ' '{print $2}' | tr -d ';\"')"
+REPORT_NAME="reporte_diagnostico_mac.html"
+REPORT_PATH="$HOME/Desktop/$REPORT_NAME"
 
-# Función para obtener el nombre del modelo de la Mac
-obtener_modelo() {
-  system_profiler SPHardwareDataType | awk '/Model Identifier/ {print $3}'
-}
+echo "<html><head><title>Diagnóstico Mac</title></head><body>" > "$REPORT_PATH"
+echo "<h1>🧠 Diagnóstico de MacBook - Versión 1.1</h1>" >> "$REPORT_PATH"
 
-# Función para obtener la versión de macOS
-obtener_version_mac() {
-  sw_vers -productVersion
-}
+echo "<h2>🖥️ Información del sistema</h2><pre>" >> "$REPORT_PATH"
+system_profiler SPHardwareDataType SPSoftwareDataType >> "$REPORT_PATH"
+echo "</pre>" >> "$REPORT_PATH"
 
-# Función para obtener el número de serie de la Mac
-obtener_numero_serie() {
-  system_profiler SPHardwareDataType | awk '/Serial Number/ {print $4}'
-}
+echo "<h2>📦 Aplicaciones instaladas</h2><pre>" >> "$REPORT_PATH"
+system_profiler SPApplicationsDataType | grep -E "Location:|Version:|^    " >> "$REPORT_PATH"
+echo "</pre>" >> "$REPORT_PATH"
 
-# Función para obtener el estado del disco
-obtener_estado_disco() {
-  diskutil verifyVolume / | grep "The volume"
-}
+echo "<h2>🧩 Extensiones de kernel no nativas</h2><pre>" >> "$REPORT_PATH"
+kextstat | grep -v com.apple >> "$REPORT_PATH"
+echo "</pre>" >> "$REPORT_PATH"
 
-# Función para obtener el estado de la memoria
-obtener_estado_memoria() {
-  vm_stat | grep "free"
-}
+echo "<h2>🔌 Dispositivos USB y Bluetooth</h2><pre>" >> "$REPORT_PATH"
+system_profiler SPUSBDataType SPBluetoothDataType >> "$REPORT_PATH"
+echo "</pre>" >> "$REPORT_PATH"
 
-# Función para obtener el estado de la batería
-obtener_estado_bateria() {
-  system_profiler SPPowerDataType | grep "Cycle Count"
-}
+echo "<h2>💡 Recomendaciones</h2>" >> "$REPORT_PATH"
+echo "<ul>" >> "$REPORT_PATH"
+echo "<li>Verifica las extensiones de kernel no nativas.</li>" >> "$REPORT_PATH"
+echo "<li>Desinstala aplicaciones innecesarias.</li>" >> "$REPORT_PATH"
+echo "<li>Monitorea los dispositivos conectados frecuentemente.</li>" >> "$REPORT_PATH"
+echo "</ul>" >> "$REPORT_PATH"
 
-# Función para generar el reporte HTML
-generar_reporte() {
-  cat <<EOF > diagnostico.html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reporte de Diagnóstico</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { color: #2c3e50; }
-    h2 { color: #34495e; }
-    pre { background-color: #ecf0f1; padding: 10px; border-radius: 5px; }
-    .section { margin-bottom: 20px; }
-  </style>
-</head>
-<body>
-  <h1>Reporte de Diagnóstico de la Mac</h1>
+echo "</body></html>" >> "$REPORT_PATH"
 
-  <div class="section">
-    <h2>Información del Sistema</h2>
-    <p><strong>Modelo:</strong> $(obtener_modelo)</p>
-    <p><strong>Versión de macOS:</strong> $(obtener_version_mac)</p>
-    <p><strong>Número de Serie:</strong> $(obtener_numero_serie)</p>
-  </div>
-
-  <div class="section">
-    <h2>Estado del Sistema</h2>
-    <p><strong>Estado del Disco:</strong> $(obtener_estado_disco)</p>
-    <p><strong>Estado de la Memoria:</strong> $(obtener_estado_memoria)</p>
-    <p><strong>Estado de la Batería:</strong> $(obtener_estado_bateria)</p>
-  </div>
-
-</body>
-</html>
-EOF
-}
-
-# Generar el reporte
-generar_reporte
-
-# Abrir el reporte HTML generado automáticamente
-open diagnostico.html
+echo "✅ Diagnóstico generado: $REPORT_PATH"
