@@ -84,3 +84,48 @@ cat <<EOF > "$OUTPUT"
       padding: 20px;
       font-size: 14px;
       color: #555;
+      border-top: 1px solid #ddd;
+    }
+    a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛰️ Keys Telecom</h1>
+    <p>🌐 <a href="https://keystelecom.com/">https://keystelecom.com/</a> |
+       📞 52 5574347924 |
+       ✉️ info@keystelecom.com |
+       📧 victor.keymolen@keystelecom.com</p>
+    <h2>Diagnóstico Técnico Completo</h2>
+  </header>
+EOF
+
+# Secciones
+add_section "📦 Información de Hardware" "$HARDWARE_INFO"
+add_section "💽 Almacenamiento" "$STORAGE_INFO"
+add_section "⚙️ Procesos Actuales" "$PROCESS_INFO"
+add_section "🌐 Configuración de Red" "$NETWORK_INFO"
+add_section "🧩 Extensiones del Kernel No Nativas" "$KEXTS"
+add_section "🛡️ Archivos Sospechosos o Malware Básico" "$MALWARE"
+add_scroll_section "⚠️ Últimos Errores (15 min)" "$ERRORS"
+add_section "🔌 Dispositivos USB y Bluetooth" "$USB_BT"
+
+# Footer
+cat <<EOF >> "$OUTPUT"
+  <footer>
+    <h2>🛠️ Recomendaciones Técnicas</h2>
+    <p>Si notas comportamientos anómalos o errores frecuentes, recomendamos contactar a:</p>
+    <p>🌐 <a href="https://keystelecom.com/">https://keystelecom.com/</a> |
+       📞 52 5574347924 |
+       ✉️ info@keystelecom.com |
+       📧</p>
+  </footer>
+</body>
+</html>
+EOF
+
+# Abrir archivo
+open "$OUTPUT" && echo "✅ Diagnóstico generado exitosamente: $OUTPUT"
