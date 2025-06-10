@@ -19,7 +19,7 @@ format_size() {
         {print human($1)}'
 }
 
-# Generar reporte HTML
+# Generar inicio del HTML
 cat > "$HTML_REPORT" << EOH
 <!DOCTYPE html>
 <html>
@@ -39,8 +39,10 @@ cat > "$HTML_REPORT" << EOH
 <body>
     <h1>🔍 Diagnóstico Técnico Completo - $(hostname)</h1>
     <p>Generado: $(date)</p>
-    
-    <!-- Sección Sistema -->
+EOH
+
+# Información del sistema
+cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🖥️ Sistema</h2>
         <table>
@@ -52,8 +54,10 @@ cat > "$HTML_REPORT" << EOH
             <tr><th>Uptime:</th><td>$(uptime | awk -F'( |,|:)+' '{print $6"h "$7"m"}')</td></tr>
         </table>
     </div>
+EOH
 
-    <!-- Sección Memoria -->
+# Memoria
+cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🧠 Memoria</h2>
         <table>
@@ -64,8 +68,10 @@ cat > "$HTML_REPORT" << EOH
         <h3>Top Procesos (RAM):</h3>
         <pre>$(ps -ercmo %mem,pid,command | head -6)</pre>
     </div>
+EOH
 
-    <!-- Sección Almacenamiento -->
+# Almacenamiento
+cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>💾 Almacenamiento</h2>
         <table>
@@ -74,11 +80,9 @@ cat > "$HTML_REPORT" << EOH
         <h3>Archivos Más Grandes (Top 10):</h3>
         <pre>$(find ~ -type f -exec du -h {} + 2>/dev/null | sort -rh | head -10)</pre>
     </div>
-
-    <!-- Sección Batería (solo portátiles) -->
 EOH
 
-# Salud de Batería
+# Batería
 if system_profiler SPPowerDataType | grep -q "Battery Information"; then
     BATTERY_INFO=$(system_profiler SPPowerDataType | awk -F': ' '
         /Cycle Count/ {cycles=$2}
@@ -100,7 +104,7 @@ if system_profiler SPPowerDataType | grep -q "Battery Information"; then
     echo "</table></div>" >> "$HTML_REPORT"
 fi
 
-# Sección Red
+# Red
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🌐 Red</h2>
@@ -111,8 +115,24 @@ cat >> "$HTML_REPORT" << EOH
         <h3>Recomendación:</h3>
         <p>Ejecuta manualmente: <code>networkQuality</code> para test de velocidad avanzado</p>
     </div>
+EOH
 
-    <!-- Sección Recomendaciones -->
+# Apps instaladas + último uso (si disponible)
+INSTALLED_APPS=$(mdfind "kMDItemKind == 'Application'" | while read -r app; do
+    name=$(basename "$app")
+    last_open=$(mdls -name kMDItemLastUsedDate "$app" | awk -F'= ' '{print $2}')
+    echo "$name - Último uso: $last_open"
+done)
+
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>📦 Aplicaciones Instaladas</h2>
+        <pre>$INSTALLED_APPS</pre>
+    </div>
+EOH
+
+# Recomendaciones
+cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🔧 Recomendaciones Técnicas</h2>
         <ul>
@@ -125,6 +145,6 @@ cat >> "$HTML_REPORT" << EOH
 </html>
 EOH
 
-# Finalización
+# Abrir reporte
 open "$HTML_REPORT"
 echo "✅ Reporte generado: $HTML_REPORT"
