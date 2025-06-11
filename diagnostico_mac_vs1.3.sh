@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.3"
+VERSION="1.3.1"
 
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
@@ -121,13 +121,25 @@ fi
 
 # Cuentas de Google Chrome (versión mejorada)
 if [ -d "/Applications/Google Chrome.app" ]; then
-    CHROME_ACCOUNTS=$(sqlite3 "$HOME/Library/Application Support/Google/Chrome/Default/Web Data" "SELECT email FROM autofill_profiles" 2>/dev/null | uniq | grep -v '^$')
+    # Método 1: Buscar en las preferencias
+    CHROME_ACCOUNTS=$(find "$HOME/Library/Application Support/Google/Chrome" -name "Preferences" -exec grep -oE '"email":"[^"]+"' {} \; 2>/dev/null | awk -F'"' '{print $4}' | sort | uniq)
+    
+    # Método 2: Buscar en la base de datos de autocompletado (si el primer método no encuentra nada)
+    if [ -z "$CHROME_ACCOUNTS" ]; then
+        CHROME_ACCOUNTS=$(find "$HOME/Library/Application Support/Google/Chrome" -name "Web Data" -exec sqlite3 {} "SELECT email FROM autofill_profiles" \; 2>/dev/null | sort | uniq)
+    fi
+    
+    # Método 3: Buscar en cookies (último recurso)
+    if [ -z "$CHROME_ACCOUNTS" ]; then
+        CHROME_ACCOUNTS=$(find "$HOME/Library/Application Support/Google/Chrome" -name "Cookies" -exec sqlite3 {} "SELECT name FROM cookies WHERE name LIKE '%@%'" \; 2>/dev/null | grep '@' | sort | uniq)
+    fi
+
     if [ -n "$CHROME_ACCOUNTS" ]; then
         cat >> "$HTML_REPORT" << EOH
     <div class="card">
         <h2>🌐 Cuentas de Google Chrome</h2>
         <table>
-            <tr><th>Cuentas vinculadas:</th><td><pre>$(echo "$CHROME_ACCOUNTS")</pre></td></tr>
+            <tr><th>Cuentas encontradas:</th><td><pre>$(echo "$CHROME_ACCOUNTS" | sed '/^$/d')</pre></td></tr>
         </table>
     </div>
 EOH
@@ -148,6 +160,7 @@ else
 EOH
 fi
 
+# [El resto del código permanece EXACTAMENTE IGUAL...]
 # Memoria
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
