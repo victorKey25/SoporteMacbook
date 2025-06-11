@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="1.3.1"
+VERSION="1.3.2"
 
 # Configuración
 REPORT_DIR="$HOME/Desktop/MacDiagnostic"
@@ -160,7 +160,17 @@ else
 EOH
 fi
 
-# [El resto del código permanece EXACTAMENTE IGUAL...]
+# Dispositivos Bluetooth (nueva sección)
+cat >> "$HTML_REPORT" << EOH
+    <div class="card">
+        <h2>🔵 Dispositivos Bluetooth</h2>
+        <h3>Conectados actualmente:</h3>
+        <pre>$(system_profiler SPBluetoothDataType 2>/dev/null | grep -A 10 "Connected:" | grep -v "Connected:" | sed '/^$/d' | sed '/--/d')</pre>
+        <h3>Dispositivos emparejados anteriormente:</h3>
+        <pre>$(defaults read /Library/Preferences/com.apple.Bluetooth | grep -E '"Name"|"Address"' | awk -F'"' '{print $4}' | paste - - | column -t)</pre>
+    </div>
+EOH
+
 # Memoria
 cat >> "$HTML_REPORT" << EOH
     <div class="card">
